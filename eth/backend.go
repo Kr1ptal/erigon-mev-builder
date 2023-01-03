@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	builder2 "github.com/ledgerwatch/erigon/builder"
 	"io/fs"
 	"math/big"
 	"net"
@@ -200,6 +201,8 @@ type Ethereum struct {
 
 	sentinel rpcsentinel.SentinelClient
 	silkworm *silkworm.Silkworm
+
+	builderConfig *builder2.Config
 }
 
 func splitAddrIntoHostAndPort(addr string) (host string, port int, err error) {
@@ -216,7 +219,7 @@ const blockBufferSize = 128
 
 // New creates a new Ethereum object (including the
 // initialisation of the common Ethereum object)
-func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger log.Logger) (*Ethereum, error) {
+func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, builderConfig *builder2.Config, logger log.Logger) (*Ethereum, error) {
 	config.Snapshot.Enabled = config.Sync.UseSnapshots
 	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Cmp(libcommon.Big0) <= 0 {
 		logger.Warn("Sanitizing invalid miner gas price", "provided", config.Miner.GasPrice, "updated", ethconfig.Defaults.Miner.GasPrice)
@@ -284,6 +287,8 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		},
 		logger: logger,
 	}
+
+	backend.builderConfig = builderConfig
 
 	var chainConfig *chain.Config
 	var genesis *types.Block
@@ -853,6 +858,13 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config) error {
 			return err
 		}
 	}
+
+	if s.builderConfig.Enabled {
+		if err := builder2.Register(stack, s, s.builderConfig, s.logger); err != nil {
+			return err
+		}
+	}
+
 	// start HTTP API
 	httpRpcCfg := stack.Config().Http
 	ethRpcClient, txPoolRpcClient, miningRpcClient, stateCache, ff, err := cli.EmbeddedServices(ctx, chainKv, httpRpcCfg.StateCache, blockReader, ethBackendRPC,
@@ -862,6 +874,9 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config) error {
 	}
 
 	s.apiList = jsonrpc.APIList(chainKv, ethRpcClient, txPoolRpcClient, miningRpcClient, ff, stateCache, blockReader, s.agg, httpRpcCfg, s.engine, s.logger)
+
+	publicAPIs, authAPIs := stack.GetAPIs()
+	s.apiList = append(s.apiList, publicAPIs...)
 	go func() {
 		if config.SilkwormEnabled && httpRpcCfg.Enabled {
 			go func() {
@@ -881,7 +896,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config) error {
 		}
 	}()
 
-	go s.engineBackendRPC.Start(httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient)
+	go s.engineBackendRPC.Start(httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient, authAPIs)
 
 	// Register the backend on the node
 	stack.RegisterLifecycle(s)
@@ -1312,6 +1327,30 @@ func (s *Ethereum) Stop() error {
 	}
 
 	return nil
+}
+
+func (s *Ethereum) BlockReader() services.FullBlockReader {
+	return s.blockReader
+}
+
+func (s *Ethereum) TxPool2DB() kv.RwDB {
+	return s.txPoolDB
+}
+
+func (s *Ethereum) TxPool2() *txpool.TxPool {
+	return s.txPool
+}
+
+func (s *Ethereum) Agg() *libstate.AggregatorV3 {
+	return s.agg
+}
+
+func (s *Ethereum) Config() *ethconfig.Config {
+	return s.config
+}
+
+func (s *Ethereum) Engine() consensus.Engine {
+	return s.engine
 }
 
 func (s *Ethereum) ChainDB() kv.RwDB {

@@ -24,6 +24,8 @@ import (
 	"github.com/ledgerwatch/erigon/params"
 )
 
+var zero = big.NewInt(0)
+
 type MiningBlock struct {
 	Header      *types.Header
 	Uncles      []*types.Header
@@ -31,6 +33,8 @@ type MiningBlock struct {
 	Receipts    types.Receipts
 	Withdrawals []*types.Withdrawal
 	PreparedTxs types.TransactionsStream
+
+	Profit *big.Int
 }
 
 type MiningState struct {
@@ -56,7 +60,7 @@ func NewProposingState(cfg *params.MiningConfig) MiningState {
 		PendingResultCh:   make(chan *types.Block, 1),
 		MiningResultCh:    make(chan *types.Block, 1),
 		MiningResultPOSCh: make(chan *types.BlockWithReceipts, 1),
-		MiningBlock:       &MiningBlock{},
+		MiningBlock:       &MiningBlock{Profit: zero},
 	}
 }
 
@@ -69,6 +73,10 @@ type MiningCreateBlockCfg struct {
 	tmpdir                 string
 	blockBuilderParameters *core.BlockBuilderParameters
 	blockReader            services.FullBlockReader
+}
+
+func (m *MiningCreateBlockCfg) GetMiner() *MiningState {
+	return &m.miner
 }
 
 func StageMiningCreateBlockCfg(db kv.RwDB, miner MiningState, chainConfig chain.Config, engine consensus.Engine, txPoolDB kv.RoDB, blockBuilderParameters *core.BlockBuilderParameters, tmpdir string, blockReader services.FullBlockReader) MiningCreateBlockCfg {

@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ledgerwatch/erigon/rpc"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -53,8 +54,10 @@ type Node struct {
 	startStopLock sync.Mutex    // Start/Stop are protected by an additional lock
 	state         int           // Tracks state of node lifecycle
 
-	lock       sync.Mutex
-	lifecycles []Lifecycle // All registered backends, services, and auxiliary services that have a lifecycle
+	lock                 sync.Mutex
+	lifecycles           []Lifecycle // All registered backends, services, and auxiliary services that have a lifecycle
+	rpcPublicAPIs        []rpc.API   // List of APIs currently provided by the node
+	rpcAuthenticatedAPIs []rpc.API   // List of APIs currently provided by the node
 
 	databases []kv.Closer
 }
@@ -283,6 +286,32 @@ func (n *Node) RegisterLifecycle(lifecycle Lifecycle) {
 		panic(fmt.Sprintf("attempt to register lifecycle %T more than once", lifecycle))
 	}
 	n.lifecycles = append(n.lifecycles, lifecycle)
+}
+
+// RegisterPublicAPIs registers the APIs a service provides on the node.
+func (n *Node) RegisterPublicAPIs(apis []rpc.API) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	if n.state != initializingState {
+		panic("can't register APIs on running/stopped node")
+	}
+	n.rpcPublicAPIs = append(n.rpcPublicAPIs, apis...)
+}
+
+// RegisterAuthenticatedAPIs registers the APIs a service provides on the node.
+func (n *Node) RegisterAuthenticatedAPIs(apis []rpc.API) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	if n.state != initializingState {
+		panic("can't register APIs on running/stopped node")
+	}
+	n.rpcAuthenticatedAPIs = append(n.rpcAuthenticatedAPIs, apis...)
+}
+
+func (n *Node) GetAPIs() (public, authenticated []rpc.API) {
+	return n.rpcPublicAPIs, n.rpcAuthenticatedAPIs
 }
 
 // Config returns the configuration of node.

@@ -77,7 +77,7 @@ func NewEngineServer(ctx context.Context, logger log.Logger, config *chain.Confi
 
 func (e *EngineServer) Start(httpConfig httpcfg.HttpCfg, db kv.RoDB, blockReader services.FullBlockReader,
 	filters *rpchelper.Filters, stateCache kvcache.Cache, agg *libstate.AggregatorV3, engineReader consensus.EngineReader,
-	eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient) {
+	eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient, authAPis []rpc.API) {
 	base := jsonrpc.NewBaseApi(filters, stateCache, blockReader, agg, httpConfig.WithDatadir, httpConfig.EvmCallTimeout, engineReader, httpConfig.Dirs)
 
 	ethImpl := jsonrpc.NewEthAPI(base, db, eth, txPool, mining, httpConfig.Gascap, httpConfig.ReturnDataLimit, httpConfig.AllowUnprotectedTxs, e.logger)
@@ -96,6 +96,8 @@ func (e *EngineServer) Start(httpConfig httpcfg.HttpCfg, db kv.RoDB, blockReader
 			Service:   EngineAPI(e),
 			Version:   "1.0",
 		}}
+
+	apiList = append(apiList, authAPis...)
 
 	if err := cli.StartRpcServerWithJwtAuthentication(e.ctx, httpConfig, apiList, e.logger); err != nil {
 		e.logger.Error(err.Error())

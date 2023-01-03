@@ -141,6 +141,71 @@ func (sdb *IntraBlockState) Reset() {
 	sdb.logSize = 0
 }
 
+func (sdb *IntraBlockState) Copy() *IntraBlockState {
+	ret := &IntraBlockState{
+		stateReader:       sdb.stateReader,
+		stateObjects:      make(map[libcommon.Address]*stateObject, len(sdb.stateObjects)),
+		stateObjectsDirty: make(map[libcommon.Address]struct{}, len(sdb.stateObjectsDirty)),
+		nilAccounts:       make(map[libcommon.Address]struct{}, len(sdb.nilAccounts)),
+		logs:              make(map[libcommon.Hash][]*types.Log, len(sdb.logs)),
+		journal:           newJournal(),
+		accessList:        newAccessList(),
+		balanceInc:        make(map[libcommon.Address]*BalanceIncrease, len(sdb.balanceInc)),
+	}
+
+	// Copy the dirty states, logs, and preimages
+	for addr := range sdb.journal.dirties {
+		// As documented [here](https://github.com/ethereum/go-ethereum/pull/16485#issuecomment-380438527),
+		// and in the Finalise-method, there is a case where an object is in the journal but not
+		// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
+		// nil
+		if object, exist := sdb.stateObjects[addr]; exist {
+			// Even though the original object is dirty, we are not copying the journal,
+			// so we need to make sure that anyside effect the journal would have caused
+			// during a commit (or similar op) is already applied to the copy.
+			ret.stateObjects[addr] = object.deepCopy(ret)
+
+			ret.stateObjectsDirty[addr] = struct{}{} // Mark the copy dirty to force internal (code/state) commits
+		}
+	}
+
+	for address, s := range sdb.stateObjectsDirty {
+		if _, exist := ret.stateObjects[address]; !exist {
+			ret.stateObjects[address] = sdb.stateObjects[address].deepCopy(ret)
+		}
+		ret.stateObjectsDirty[address] = s
+	}
+
+	for address, s := range sdb.nilAccounts {
+		ret.nilAccounts[address] = s
+	}
+
+	ret.refund = sdb.refund
+
+	for txHash, logs := range sdb.logs {
+		logsCopy := make([]*types.Log, len(logs))
+		for i, l := range logs {
+			logsCopy[i] = new(types.Log)
+			*logsCopy[i] = *l
+		}
+		ret.logs[txHash] = logsCopy
+	}
+
+	ret.logSize = sdb.logSize
+	ret.trace = sdb.trace
+	ret.accessList = sdb.accessList.Copy()
+
+	for address, increase := range sdb.balanceInc {
+		ret.balanceInc[address] = &BalanceIncrease{
+			increase:    increase.increase,
+			transferred: increase.transferred,
+			count:       increase.count,
+		}
+	}
+
+	return ret
+}
+
 func (sdb *IntraBlockState) AddLog(log2 *types.Log) {
 	sdb.journal.append(addLogChange{txhash: sdb.thash})
 	log2.TxHash = sdb.thash

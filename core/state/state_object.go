@@ -122,6 +122,22 @@ func newObject(db *IntraBlockState, address libcommon.Address, data, original *a
 	return &so
 }
 
+func (so *stateObject) deepCopy(db *IntraBlockState) *stateObject {
+	stateObject := newObject(db, so.address, &so.data, &so.original)
+	stateObject.code = so.code
+	stateObject.originStorage = so.originStorage.Copy()
+	stateObject.blockOriginStorage = so.blockOriginStorage.Copy()
+	stateObject.dirtyStorage = so.dirtyStorage.Copy()
+	stateObject.fakeStorage = so.fakeStorage.Copy()
+
+	stateObject.dirtyCode = so.dirtyCode
+	stateObject.selfdestructed = so.selfdestructed
+	stateObject.deleted = so.deleted
+	stateObject.newlyCreated = so.newlyCreated
+	stateObject.createdContract = so.createdContract
+	return stateObject
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (so *stateObject) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, so.data)

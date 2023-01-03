@@ -3,9 +3,11 @@ package node
 
 import (
 	"context"
+	"strings"
 
 	"github.com/ledgerwatch/erigon-lib/chain/networkname"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon/builder"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/urfave/cli/v2"
 
@@ -64,6 +66,40 @@ type Params struct {
 	CustomBuckets kv.TableCfg
 }
 
+func NewBuilderConfig(ctx *cli.Context) *builder.Config {
+	cfg := &builder.DefaultConfig
+	if ctx.IsSet(utils.BuilderEnabled.Name) {
+		cfg.Enabled = ctx.Bool(utils.BuilderEnabled.Name)
+	}
+	cfg.EnableValidatorChecks = ctx.IsSet(utils.BuilderEnableValidatorChecks.Name)
+	cfg.EnableLocalRelay = ctx.IsSet(utils.BuilderEnableLocalRelay.Name)
+	cfg.SlotsInEpoch = ctx.Uint64(utils.BuilderSlotsInEpoch.Name)
+	cfg.SecondsInSlot = ctx.Uint64(utils.BuilderSecondsInSlot.Name)
+	cfg.DisableBundleFetcher = ctx.IsSet(utils.BuilderDisableBundleFetcher.Name)
+	cfg.DryRun = ctx.IsSet(utils.BuilderDryRun.Name)
+	cfg.IgnoreLatePayloadAttributes = ctx.IsSet(utils.BuilderIgnoreLatePayloadAttributes.Name)
+	cfg.BuilderFeeRecipientPrivateKey = ctx.String(utils.BuilderFeeRecipientPrivateKey.Name)
+	cfg.BuilderSecretKey = ctx.String(utils.BuilderSecretKey.Name)
+	cfg.RelaySecretKey = ctx.String(utils.BuilderRelaySecretKey.Name)
+	cfg.ListenAddr = ctx.String(utils.BuilderListenAddr.Name)
+	cfg.GenesisForkVersion = ctx.String(utils.BuilderGenesisForkVersion.Name)
+	cfg.BellatrixForkVersion = ctx.String(utils.BuilderBellatrixForkVersion.Name)
+	cfg.GenesisValidatorsRoot = ctx.String(utils.BuilderGenesisValidatorsRoot.Name)
+	cfg.BeaconEndpoints = strings.Split(ctx.String(utils.BuilderBeaconEndpoints.Name), ",")
+	cfg.RemoteRelayEndpoint = ctx.String(utils.BuilderRemoteRelayEndpoint.Name)
+	cfg.SecondaryRemoteRelayEndpoints = strings.Split(ctx.String(utils.BuilderSecondaryRemoteRelayEndpoints.Name), ",")
+	cfg.ValidationBlocklist = ctx.String(utils.BuilderBlacklistFile.Name)
+	cfg.ValidationUseCoinbaseDiff = ctx.Bool(utils.BuilderBlockValidationUseBalanceDiff.Name)
+	cfg.BuilderRateLimitDuration = ctx.String(utils.BuilderRateLimitDuration.Name)
+	cfg.BuilderRateLimitMaxBurst = ctx.Int(utils.BuilderRateLimitMaxBurst.Name)
+	cfg.BuilderSubmissionOffset = ctx.Duration(utils.BuilderSubmissionOffset.Name)
+	cfg.DiscardRevertibleTxOnErr = ctx.Bool(utils.BuilderDiscardRevertibleTxOnErr.Name)
+	cfg.EnableCancellations = ctx.IsSet(utils.BuilderEnableCancellations.Name)
+	cfg.BuilderRateLimitResubmitInterval = ctx.String(utils.BuilderBlockResubmitInterval.Name)
+
+	return cfg
+}
+
 func NewNodConfigUrfave(ctx *cli.Context, logger log.Logger) *nodecfg.Config {
 	// If we're running a known preset, log it for convenience.
 	chain := ctx.String(utils.ChainFlag.Name)
@@ -111,6 +147,7 @@ func New(
 	ctx context.Context,
 	nodeConfig *nodecfg.Config,
 	ethConfig *ethconfig.Config,
+	builderConfig *builder.Config,
 	logger log.Logger,
 ) (*ErigonNode, error) {
 	//prepareBuckets(optionalParams.CustomBuckets)
@@ -119,7 +156,7 @@ func New(
 		utils.Fatalf("Failed to create Erigon node: %v", err)
 	}
 
-	ethereum, err := eth.New(ctx, node, ethConfig, logger)
+	ethereum, err := eth.New(ctx, node, ethConfig, builderConfig, logger)
 	if err != nil {
 		return nil, err
 	}

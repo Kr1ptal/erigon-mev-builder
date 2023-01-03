@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/c2h5oh/datasize"
 	"github.com/ledgerwatch/erigon-lib/chain/networkname"
@@ -834,6 +835,165 @@ var (
 		Name:  "silkworm.path",
 		Usage: "Path to the silkworm_api library (enables embedded Silkworm execution)",
 		Value: "",
+	}
+	// Builder API settings
+	BuilderEnabled = &cli.BoolFlag{
+		Name:  "builder",
+		Usage: "Enable the builder",
+	}
+	BuilderEnableValidatorChecks = &cli.BoolFlag{
+		Name:  "builder.validator_checks",
+		Usage: "Enable the validator checks",
+	}
+	BuilderEnableLocalRelay = &cli.BoolFlag{
+		Name:  "builder.local_relay",
+		Usage: "Enable the local relay",
+	}
+	BuilderSlotsInEpoch = &cli.Uint64Flag{
+		Name:  "builder.slots_in_epoch",
+		Usage: "Set the number of slots in an epoch in the local relay",
+		Value: 32,
+	}
+	BuilderSecondsInSlot = &cli.Uint64Flag{
+		Name:  "builder.seconds_in_slot",
+		Usage: "Set the number of seconds in a slot in the local relay",
+		Value: 12,
+	}
+	BuilderDisableBundleFetcher = &cli.BoolFlag{
+		Name:  "builder.no_bundle_fetcher",
+		Usage: "Disable the bundle fetcher",
+	}
+	BuilderDryRun = &cli.BoolFlag{
+		Name:  "builder.dry-run",
+		Usage: "Builder only validates blocks without submission to the relay",
+	}
+	BuilderIgnoreLatePayloadAttributes = &cli.BoolFlag{
+		Name:  "builder.ignore_late_payload_attributes",
+		Usage: "Builder will ignore all but the first payload attributes. Use if your CL sends non-canonical head updates.",
+	}
+	BuilderFeeRecipientPrivateKey = &cli.StringFlag{
+		Name:    "builder.fee_recipient_private_key",
+		Usage:   "Builder fee recipient address private key",
+		EnvVars: []string{"BUILDER_TX_SIGNING_KEY"},
+		Value:   "0x2fc12ae741f29701f8e30f5de6350766c020cb80768a0ff01e6838ffd2431e11",
+	}
+	BuilderSecretKey = &cli.StringFlag{
+		Name:    "builder.secret_key",
+		Usage:   "Builder key used for signing blocks",
+		EnvVars: []string{"BUILDER_SECRET_KEY"},
+		Value:   "0x2fc12ae741f29701f8e30f5de6350766c020cb80768a0ff01e6838ffd2431e11",
+	}
+	BuilderRelaySecretKey = &cli.StringFlag{
+		Name:    "builder.relay_secret_key",
+		Usage:   "Builder local relay API key used for signing headers",
+		EnvVars: []string{"BUILDER_RELAY_SECRET_KEY"},
+		Value:   "0x2fc12ae741f29701f8e30f5de6350766c020cb80768a0ff01e6838ffd2431e11",
+	}
+	BuilderListenAddr = &cli.StringFlag{
+		Name:    "builder.listen_addr",
+		Usage:   "Listening address for builder endpoint",
+		EnvVars: []string{"BUILDER_LISTEN_ADDR"},
+		Value:   ":28545",
+	}
+	BuilderGenesisForkVersion = &cli.StringFlag{
+		Name:    "builder.genesis_fork_version",
+		Usage:   "Gensis fork version. For kiln use 0x70000069",
+		EnvVars: []string{"BUILDER_GENESIS_FORK_VERSION"},
+		Value:   "0x00000000",
+	}
+	BuilderBellatrixForkVersion = &cli.StringFlag{
+		Name:    "builder.bellatrix_fork_version",
+		Usage:   "Bellatrix fork version. For kiln use 0x70000071",
+		EnvVars: []string{"BUILDER_BELLATRIX_FORK_VERSION"},
+		Value:   "0x02000000",
+	}
+	BuilderGenesisValidatorsRoot = &cli.StringFlag{
+		Name:    "builder.genesis_validators_root",
+		Usage:   "Genesis validators root of the network. For kiln use 0x99b09fcd43e5905236c370f184056bec6e6638cfc31a323b304fc4aa789cb4ad",
+		EnvVars: []string{"BUILDER_GENESIS_VALIDATORS_ROOT"},
+		Value:   "0x0000000000000000000000000000000000000000000000000000000000000000",
+	}
+	BuilderBeaconEndpoints = &cli.StringFlag{
+		Name:    "builder.beacon_endpoints",
+		Usage:   "Comma separated list of beacon endpoints to connect to for beacon chain data",
+		EnvVars: []string{"BUILDER_BEACON_ENDPOINTS"},
+		Value:   "http://127.0.0.1:5052",
+	}
+	BuilderRemoteRelayEndpoint = &cli.StringFlag{
+		Name:    "builder.remote_relay_endpoint",
+		Usage:   "Relay endpoint to connect to for validator registration data, if not provided will expose validator registration locally",
+		EnvVars: []string{"BUILDER_REMOTE_RELAY_ENDPOINT"},
+		Value:   "",
+	}
+	BuilderSecondaryRemoteRelayEndpoints = &cli.StringFlag{
+		Name:    "builder.secondary_remote_relay_endpoints",
+		Usage:   "Comma separated relay endpoints to connect to for validator registration data missing from the primary remote relay, and to push blocks for registrations missing from or matching the primary",
+		EnvVars: []string{"BUILDER_SECONDARY_REMOTE_RELAY_ENDPOINTS"},
+		Value:   "",
+	}
+	BuilderBlacklistFile = &cli.StringFlag{
+		Name:    "builder.blacklist",
+		Usage:   "Path to a file containing a list of blacklisted addresses",
+		EnvVars: []string{"BUILDER_BLACKLIST"},
+		Value:   "blacklist.json",
+	}
+	BuilderPaymentPercent = &cli.StringFlag{
+		Name:    "builder.payment_percent",
+		Usage:   "Percent between 0 and 100, indicating how much of block reward to pay to proposer",
+		EnvVars: []string{"BUILDER_PAYMENT_PERCENT"},
+		Value:   "100",
+	}
+	BuilderBlockValidationUseBalanceDiff = &cli.BoolFlag{
+		Name:  "builder.validation_use_balance_diff",
+		Usage: "Block validation API will use fee recipient balance difference for profit calculation.",
+		Value: false,
+	}
+	BuilderRateLimitDuration = &cli.StringFlag{
+		Name: "builder.rate_limit_duration",
+		Usage: "Determines rate limit of events processed by builder. For example, a value of \"500ms\" denotes that the builder processes events every 500ms. " +
+			"A duration string is a possibly signed sequence " +
+			"of decimal numbers, each with optional fraction and a unit suffix, such as \"300ms\", \"-1.5h\" or \"2h45m\"",
+		EnvVars: []string{"FLASHBOTS_BUILDER_RATE_LIMIT_DURATION"},
+		Value:   (500 * time.Millisecond).String(),
+	}
+
+	// BuilderRateLimitMaxBurst burst value can be thought of as a bucket of size b, initially full and refilled at rate r per second.
+	// b is defined by BuilderRateLimitMaxBurst and r is defined by BuilderRateLimitDuration.
+	// Additional details can be found on rate.Limiter documentation: https://pkg.go.dev/golang.org/x/time/rate#Limiter
+	BuilderRateLimitMaxBurst = &cli.IntFlag{
+		Name:    "builder.rate_limit_max_burst",
+		Usage:   "Determines the maximum number of burst events the builder can accommodate at any given point in time.",
+		EnvVars: []string{"FLASHBOTS_BUILDER_RATE_LIMIT_MAX_BURST"},
+		Value:   10,
+	}
+
+	BuilderBlockResubmitInterval = &cli.StringFlag{
+		Name:    "builder.block_resubmit_interval",
+		Usage:   "Determines the interval at which builder will resubmit block submissions",
+		EnvVars: []string{"FLASHBOTS_BUILDER_RATE_LIMIT_RESUBMIT_INTERVAL"},
+		Value:   (500 * time.Millisecond).String(),
+	}
+
+	BuilderSubmissionOffset = &cli.DurationFlag{
+		Name: "builder.submission_offset",
+		Usage: "Determines the offset from the end of slot time that the builder will submit blocks. " +
+			"For example, if a slot is 12 seconds long, and the offset is 2 seconds, the builder will submit blocks at 10 seconds into the slot.",
+		EnvVars: []string{"FLASHBOTS_BUILDER_SUBMISSION_OFFSET"},
+		Value:   3 * time.Second,
+	}
+
+	BuilderDiscardRevertibleTxOnErr = &cli.BoolFlag{
+		Name: "builder.discard_revertible_tx_on_error",
+		Usage: "When enabled, if a transaction submitted as part of a bundle in a send bundle request has error on commit, " +
+			"and its hash is specified as one that can revert in the request body, the builder will discard the hash of the failed transaction from the submitted bundle." +
+			"For additional details on the structure of the request body, see https://docs.flashbots.net/flashbots-mev-share/searchers/understanding-bundles#bundle-definition",
+		EnvVars: []string{"FLASHBOTS_BUILDER_DISCARD_REVERTIBLE_TX_ON_ERROR"},
+		Value:   false,
+	}
+
+	BuilderEnableCancellations = &cli.BoolFlag{
+		Name:  "builder.cancellations",
+		Usage: "Enable cancellations for the builder",
 	}
 )
 

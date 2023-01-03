@@ -222,6 +222,11 @@ func MockWithGenesisEngine(tb testing.TB, gspec *types.Genesis, engine consensus
 	return MockWithEverything(tb, gspec, key, prune.DefaultMode, engine, blockBufferSize, false, withPosDownloader, checkStateRoot)
 }
 
+func MockWithGenesisEngineTxPool(t *testing.T, gspec *types.Genesis, engine consensus.Engine, withPosDownloader bool) *MockSentry {
+	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	return MockWithEverything(t, gspec, key, prune.DefaultMode, engine, blockBufferSize, true, withPosDownloader, true)
+}
+
 func MockWithGenesisPruneMode(tb testing.TB, gspec *types.Genesis, key *ecdsa.PrivateKey, blockBufferSize int, prune prune.Mode, withPosDownloader bool) *MockSentry {
 	var engine consensus.Engine
 
@@ -783,4 +788,8 @@ func (ms *MockSentry) HistoryV3Components() *libstate.AggregatorV3 {
 
 func (ms *MockSentry) BlocksIO() (services.FullBlockReader, *blockio.BlockWriter) {
 	return ms.BlockReader, blockio.NewBlockWriter(ms.HistoryV3)
+}
+
+func (ms *MockSentry) TxPoolDB() kv.RwDB {
+	return ms.txPoolDB
 }
